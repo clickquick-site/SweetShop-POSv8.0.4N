@@ -1187,14 +1187,14 @@ function toggleExpensesSync() {
   expensesSyncEnabled = document.getElementById('expensesSyncToggle').checked;
   localStorage.setItem('pos_expenses_sync', expensesSyncEnabled);
   updateClearButtons();
-  window.toast.show(expensesSyncEnabled ? '✅ تم تفعيل الربط' : '🔴 تم إيقاف الربط', 'info');
+  window.toast.show(expensesSyncEnabled ? '✅ تم تفعيل الربط — المصاريف الجديدة ستظهر في التقارير' : '🔴 تم إيقاف الربط — المصاريف الجديدة لن تظهر في التقارير', 'info');
 }
 
 function toggleSalariesSync() {
   salariesSyncEnabled = document.getElementById('salariesSyncToggle').checked;
   localStorage.setItem('pos_salaries_sync', salariesSyncEnabled);
   updateClearButtons();
-  window.toast.show(salariesSyncEnabled ? '✅ تم تفعيل الربط' : '🔴 تم إيقاف الربط', 'info');
+  window.toast.show(salariesSyncEnabled ? '✅ تم تفعيل الربط — الرواتب الجديدة ستظهر في التقارير' : '🔴 تم إيقاف الربط — الرواتب الجديدة لن تظهر في التقارير', 'info');
 }
 
 function updateClearButtons() {
@@ -1441,6 +1441,8 @@ async function saveExpense() {
     note: note || null,
     isPaid: false,
     paidDate: null,
+    // ✅ يحمل قراره بنفسه — حسب حالة الزر لحظة الإنشاء
+    include_in_reports: expensesSyncEnabled,
     updatedAt: window.dateUtils.now()
   };
   
@@ -1504,9 +1506,15 @@ async function payExpense(id) {
   expense.paidDate = window.dateUtils.now();
   await window.dbManager.put('expenses', expense);
   
-  // إضافة إلى سجل المداخيل اليومي إذا كان الربط مفعلاً
-  if (expensesSyncEnabled) {
-    await addToDailyEntries('مصروف', expense.category, expense.amount);
+  // ✅ تسجيل في transactions إذا كان include_in_reports مفعلاً
+  if (expense.include_in_reports) {
+    await window.dbManager.add('transactions', {
+      type: 'expense',
+      amount: expense.amount,
+      date: expense.paidDate,
+      ref_id: expense.id,
+      note: `${expense.category}${expense.note ? ' - ' + expense.note : ''}`
+    });
   }
   
   await loadAllData();
@@ -1789,19 +1797,26 @@ async function confirmPaySalary() {
   
   await window.dbManager.add('workerPayments', payment);
   
-  // إضافة كمصروف تلقائي
-  await window.dbManager.add('expenses', {
+  // ✅ إضافة كمصروف تلقائي مع include_in_reports حسب حالة الزر
+  const salaryExpenseId = await window.dbManager.add('expenses', {
     category: 'رواتب',
     amount,
     date: window.dateUtils.today(),
     note: `راتب ${worker.firstName} ${worker.lastName} - ${month}`,
     isPaid: true,
-    paidDate: window.dateUtils.now()
+    paidDate: window.dateUtils.now(),
+    include_in_reports: salariesSyncEnabled
   });
-  
-  // إضافة إلى سجل المداخيل اليومي إذا كان الربط مفعلاً
+
+  // ✅ تسجيل في transactions إذا كان الربط مفعلاً
   if (salariesSyncEnabled) {
-    await addToDailyEntries('راتب', `${worker.firstName} ${worker.lastName}`, amount);
+    await window.dbManager.add('transactions', {
+      type: 'salary',
+      amount,
+      date: window.dateUtils.now(),
+      ref_id: salaryExpenseId,
+      note: `راتب ${worker.firstName} ${worker.lastName} - ${month}`
+    });
   }
   
   await loadAllData();
