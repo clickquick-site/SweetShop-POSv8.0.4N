@@ -1074,12 +1074,11 @@ function renderCustomers() {
     const totalDebt = customerDebts.reduce((sum, d) => sum + (d.amount || 0), 0);
     const hasDebt = totalDebt > 0;
     
-    // ✅ استبعاد وصولات التسديد — هي مدفوعات وليست مشتريات حقيقية
+    // ✅ استبعاد وصولات التسديد الكاملة فقط — البيع الجزئي هو شراء حقيقي
     const customerSales = allSales.filter(s =>
       s.customerId === customer.id &&
       !s.isCancelled &&
-      s.invoiceKind !== 'settlement' &&
-      s.invoiceKind !== 'partial'
+      s.invoiceKind !== 'settlement'
     );
     const totalPurchases = customerSales.reduce((sum, s) => sum + (s.total || 0), 0);
     const visitCount = customerSales.length;
@@ -1523,7 +1522,6 @@ async function confirmPayment() {
 
   const customer = allCustomers.find(c => c.id === activeCustomerId);
   const user = window.sessionManager?.getUser();
-  const now = window.dateUtils.now();
 
   // ✅ تسجيل التسديد في transactions فقط — بدون إنشاء sale مزيف
   const totalDebtBefore = parseFloat(document.getElementById('paymentInfo').dataset.totalDebt) || amount;
