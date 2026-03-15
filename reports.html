@@ -1447,8 +1447,12 @@ async function loadAllData() {
   allExpenses = await window.dbManager.getAll('expenses');
   allDebts = await window.dbManager.getAll('debts');
   allUsers = await window.dbManager.getAll('users');
-  // ✅ الحركات المالية — مصدر الحقيقة للتسديدات والمصاريف
-  allTransactions = await window.dbManager.getAll('transactions');
+  // ✅ تحميل transactions مع حماية من عدم وجود الجدول في DB القديم
+  try {
+    allTransactions = await window.dbManager.getAll('transactions');
+  } catch (e) {
+    allTransactions = [];
+  }
 }
 
 // ============================================================
@@ -1547,8 +1551,7 @@ async function updateSidebarValues() {
   const todaySales = allSales.filter(s =>
     !s.isCancelled &&
     s.date.startsWith(today) &&
-    s.invoiceKind !== 'settlement' &&
-    s.invoiceKind !== 'partial'
+    s.invoiceKind !== 'settlement'
   );
   const salesCash = todaySales.reduce((sum, s) => sum + (s.paid || 0), 0);
 
@@ -1578,14 +1581,12 @@ async function loadDashboard() {
   const todaySales = allSales.filter(s =>
     !s.isCancelled &&
     s.date.startsWith(today) &&
-    s.invoiceKind !== 'settlement' &&
-    s.invoiceKind !== 'partial'
+    s.invoiceKind !== 'settlement'
   );
   const yesterdaySales = allSales.filter(s =>
     !s.isCancelled &&
     s.date.startsWith(yesterday) &&
-    s.invoiceKind !== 'settlement' &&
-    s.invoiceKind !== 'partial'
+    s.invoiceKind !== 'settlement'
   );
 
   // نقدي من المبيعات الحقيقية
@@ -2005,12 +2006,11 @@ async function updateABC() {
 //  آخر المبيعات
 // ============================================================
 async function updateRecentSales() {
-  // ✅ مبيعات حقيقية فقط — بدون وصولات التسديد
+  // ✅ استبعاد وصولات التسديد الكاملة فقط
   const recent = allSales
     .filter(s =>
       !s.isCancelled &&
-      s.invoiceKind !== 'settlement' &&
-      s.invoiceKind !== 'partial'
+      s.invoiceKind !== 'settlement'
     )
     .sort((a, b) => new Date(b.date) - new Date(a.date))
     .slice(0, 10);
@@ -2078,8 +2078,7 @@ async function loadDailyReport() {
   const daySales = allSales.filter(s =>
     !s.isCancelled &&
     s.date.startsWith(date) &&
-    s.invoiceKind !== 'settlement' &&
-    s.invoiceKind !== 'partial'
+    s.invoiceKind !== 'settlement'
   );
 
   // ✅ تسديدات الديون من transactions
@@ -2523,8 +2522,7 @@ async function loadAccounting() {
   const daySales = allSales.filter(s =>
     !s.isCancelled &&
     s.date.startsWith(date) &&
-    s.invoiceKind !== 'settlement' &&
-    s.invoiceKind !== 'partial'
+    s.invoiceKind !== 'settlement'
   );
 
   // ✅ تسديدات الديون من transactions
