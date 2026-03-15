@@ -9,7 +9,7 @@ const APP_VERSION = { number: '8.0.0', date: '2026-03', name: 'POS DZ' };
 //  IndexedDB - إدارة احترافية مع معالجة الترقيات
 // ══════════════════════════════════════════════════════════════
 const DB_NAME = 'POSDZ_DB';
-const DB_VERSION = 6; // ترقية الإصدار لتجنب الخلط مع القديم
+const DB_VERSION = 7; // v7: إضافة transactions + include_in_reports
 
 class DatabaseManager {
   constructor() {
@@ -19,7 +19,7 @@ class DatabaseManager {
       'users', 'products', 'families', 'customers', 'suppliers',
       'sales', 'saleItems', 'debts', 'debtPayments', 'expenses',
       'purchases', 'settings', 'logs', 'counter', 'syncQueue',
-      'workers', 'workerPayments', 'dailyEntries' // جدول موحد للمصاريف اليومية
+      'workers', 'workerPayments', 'dailyEntries', 'transactions'
     ];
   }
 
@@ -115,6 +115,7 @@ class DatabaseManager {
     expenses.createIndex('date', 'date', { unique: false });
     expenses.createIndex('category', 'category', { unique: false });
     expenses.createIndex('isPaid', 'isPaid', { unique: false });
+    expenses.createIndex('include_in_reports', 'include_in_reports', { unique: false });
 
     // المشتريات
     const purchases = db.createObjectStore('purchases', { keyPath: 'id', autoIncrement: true });
@@ -148,6 +149,12 @@ class DatabaseManager {
     const dailyEntries = db.createObjectStore('dailyEntries', { keyPath: 'id', autoIncrement: true });
     dailyEntries.createIndex('date', 'date', { unique: false });
     dailyEntries.createIndex('type', 'type', { unique: false }); // 'sale', 'expense', 'salary'
+
+    // الحركات المالية — المرجع الموحد للتقارير
+    const transactions = db.createObjectStore('transactions', { keyPath: 'id', autoIncrement: true });
+    transactions.createIndex('date', 'date', { unique: false });
+    transactions.createIndex('type', 'type', { unique: false }); // 'debt_payment' / 'expense' / 'salary'
+    transactions.createIndex('ref_id', 'ref_id', { unique: false });
   }
 
   _handleUpgrade(db, tx, oldVersion) {
@@ -185,6 +192,25 @@ class DatabaseManager {
             }
           });
         };
+      }
+    }
+
+    // ترقية من الإصدار 6 إلى 7
+    if (oldVersion < 7) {
+      // إضافة جدول transactions إذا لم يكن موجوداً
+      if (!db.objectStoreNames.contains('transactions')) {
+        const transactions = db.createObjectStore('transactions', { keyPath: 'id', autoIncrement: true });
+        transactions.createIndex('date', 'date', { unique: false });
+        transactions.createIndex('type', 'type', { unique: false });
+        transactions.createIndex('ref_id', 'ref_id', { unique: false });
+      }
+
+      // إضافة فهرس include_in_reports لجدول expenses إذا لم يكن موجوداً
+      if (db.objectStoreNames.contains('expenses')) {
+        const expStore = tx.objectStore('expenses');
+        if (!expStore.indexNames.contains('include_in_reports')) {
+          expStore.createIndex('include_in_reports', 'include_in_reports', { unique: false });
+        }
       }
     }
   }
